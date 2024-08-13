@@ -160,8 +160,6 @@ rag_think_prompt = """
 
 rag_agent_prompt = PromptTemplate(template=rag_think_prompt, input_variables=['input','tools', 'agent_scratchpad', 'tool_names'])
 
-
-
 print("Creamos el agente de RAG")
 agentRag = create_react_agent(
     llm=llm, 
@@ -177,11 +175,17 @@ agent_executor = AgentExecutor(
     agent=agentRag, 
     tools=tools, 
     verbose=True, 
-    max_iterations=2, 
+    max_iterations=10, 
     handle_parsing_errors=True
 )
 
+#response = agent_executor.run(question_user)
+print("Activando el agente de RAG")
+rag_response = agent_executor.invoke({
+    "input" : question_user
+})
 
+print(rag_response["output"])
 #Creación del agente de organización
 
 format_prompt_template = """
@@ -192,10 +196,14 @@ format_prompt_template = """
     Formatea la respuesta en formato markdown, resúmela y organiza la información de manera clara y concisa.
     Asegúrate de que la respuesta esté en español y sea fácil de entender.
 
+    Herramientas disponibles: {tools}
+    Nombre de las herramientas: {tool_names}
+    Scratchpad: {agent_scratchpad}
+
     Respuesta formateada y resumida:
 """
 
-format_prompt = PromptTemplate(template=format_prompt_template, input_variables=['response'])
+format_prompt = PromptTemplate(template=format_prompt_template, input_variables=['response', 'tools', 'agent_scratchpad', 'tool_names'])
 
 # Función para invocar al segundo agente
 def format_response(response):
@@ -203,13 +211,51 @@ def format_response(response):
     return formatted_response
 
 
-#response = agent_executor.run(question_user)
-print("Activando el agente de RAG")
-rag_response = agent_executor.invoke({
-    "input" : question_user
+#Definimos la herramienta de formateo 
+
+format_tool = Tool(
+    name="Formateo y organización de resultados",
+    func=format_response,
+    description="Sirve para poder organizar las respuestas ofrecidas por los demas agentes"
+)
+
+#Lista de herramientas disponibles
+tools2 = [format_tool]
+
+# Nombres de las herramientas
+tool_names2 = [tool.name for tool in tools2]
+
+#Creamos el agente de formateo
+agentFormat = create_react_agent(
+    llm=llm, 
+    tools=tools2, 
+    prompt=format_prompt
+)
+
+
+
+
+#Se crea el ejecutos del agente de formateo
+agent_format_executor = AgentExecutor(
+    agent=agentFormat,
+    tools=tools2,
+    verbose=True,
+    max_iterations=1,
+    handle_parsing_errors=True
+)
+
+
+#Activamos el agente de formateo
+print("Activando el agente de formateo")
+
+"""
+    formatted_response = agent_executor.invoke({
+    "response": rag_response
 })
+"""
+
 
 # Pasar la respuesta del agente RAG al segundo agente para formatear, resumir y organizar
-formatted_response = format_response(rag_response)
+#formatted_response = format_response(rag_response)
 
-print(formatted_response)
+#print(formatted_response)
